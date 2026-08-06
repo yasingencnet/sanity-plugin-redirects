@@ -1,0 +1,76 @@
+{
+  "name": "sanity-plugin-redirects",
+  "version": "1.0.0",
+  "description": "Editor-managed 301/302 redirects for Sanity — a Studio plugin plus a zero-dependency matcher you apply in your own middleware, Worker or edge function.",
+  "keywords": [
+    "sanity",
+    "sanity-plugin",
+    "redirects",
+    "301",
+    "seo",
+    "migration",
+    "cms"
+  ],
+  "license": "MIT",
+  "author": "36creative",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/36creative/sanity-plugin-redirects.git"
+  },
+  "bugs": {
+    "url": "https://github.com/36creative/sanity-plugin-redirects/issues"
+  },
+  "homepage": "https://github.com/36creative/sanity-plugin-redirects#readme",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./match": {
+      "types": "./dist/match.d.ts",
+      "default": "./dist/match.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19",
+    "sanity": "^3 || ^4 || ^5 || ^6.0.0-0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "sanity": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@sanity/icons": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "react": "^19.0.0",
+    "sanity": "^5.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
