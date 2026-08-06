@@ -1,7 +1,7 @@
 {
   "name": "sanity-plugin-redirects",
   "version": "1.0.0",
-  "description": "Editor-managed 301/302 redirects for Sanity — a Studio plugin plus a zero-dependency matcher you apply in your own middleware, Worker or edge function.",
+  "description": "Editor-managed 301/302 redirects for Sanity \u2014 a Studio plugin plus a zero-dependency matcher you apply in your own middleware, Worker or edge function.",
   "keywords": [
     "sanity",
     "sanity-plugin",
@@ -12,15 +12,15 @@
     "cms"
   ],
   "license": "MIT",
-  "author": "36creative",
+  "author": "Yasin Genc (https://github.com/yasingencnet)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/36creative/sanity-plugin-redirects.git"
+    "url": "git+https://github.com/yasingencnet/sanity-plugin-redirects.git"
   },
   "bugs": {
-    "url": "https://github.com/36creative/sanity-plugin-redirects/issues"
+    "url": "https://github.com/yasingencnet/sanity-plugin-redirects/issues"
   },
-  "homepage": "https://github.com/36creative/sanity-plugin-redirects#readme",
+  "homepage": "https://github.com/yasingencnet/sanity-plugin-redirects#readme",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -46,7 +46,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "node --test test/*.test.js",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "react": "^18 || ^19",
