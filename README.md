@@ -1,5 +1,9 @@
 # sanity-plugin-redirects
 
+[![npm](https://img.shields.io/npm/v/sanity-plugin-redirects)](https://www.npmjs.com/package/sanity-plugin-redirects)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/sanity-plugin-redirects)](https://bundlephobia.com/package/sanity-plugin-redirects)
+[![licence](https://img.shields.io/npm/l/sanity-plugin-redirects)](./LICENSE)
+
 Editor-managed 301/302 redirects for Sanity, in the spirit of WordPress's
 [Redirection](https://wordpress.org/plugins/redirection/) plugin: an SEO team
 owns a list of "this old URL now lives here" rules in the Studio, and your host
@@ -203,6 +207,17 @@ REDIRECT_TYPE     // 'redirect'
 REDIRECTS_QUERY   // the GROQ behind fetchRedirects, if you'd rather use your own client
 ```
 
+## Contributing
+
+```sh
+npm install
+npm test          # 18 tests, run against dist so they check what ships
+npm run build
+```
+
+Issues and pull requests are welcome at
+[yasingencnet/sanity-plugin-redirects](https://github.com/yasingencnet/sanity-plugin-redirects).
+
 ## Licence
 
-MIT
+MIT © [Yasin Genc](https://github.com/yasingencnet)
