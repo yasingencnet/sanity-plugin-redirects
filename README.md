@@ -40,7 +40,7 @@ export default defineConfig({
 ```
 
 ```ts
-// structure.ts — optional, for a tidy sidebar entry
+// structure.ts — for the sidebar entry and its test area
 import {redirectsListItem} from 'sanity-plugin-redirects'
 
 export const structure = (S) =>
@@ -50,9 +50,17 @@ export const structure = (S) =>
   ])
 ```
 
-Editors get a **Redirects** list where each row reads `/board.shtml →
-/leadership · 301`, with fields for source, destination, a 301/302 toggle, an
-enabled toggle and free-text notes.
+Editors get **Redirects** in the sidebar, with two items:
+
+- **All redirects**: a list where each row reads `/board.shtml → /leadership ·
+  301`, with fields for source, destination, a 301/302 toggle, an enabled
+  toggle and free-text notes.
+- **Test an address**: type an old address and see every hop it takes, the
+  rule behind each (one click opens it), and a warning for chains
+  (`/a` → `/b` → `/c`), circles, and folder rules that keep feeding
+  themselves. It reads the published rules, or with *Include unpublished
+  changes*, the drafts too, so a rule can be tried before it goes live. It
+  runs the same matcher your host does.
 
 Validation refuses the mistakes that are expensive to find later: duplicate
 sources (checked against the dataset), rules that point at themselves, `*`
@@ -64,7 +72,7 @@ Rules are stored in Sanity but applied by you, because only your host can
 return a redirect before the page renders.
 
 ```ts
-import {fetchRedirects, matchRedirect} from 'sanity-plugin-redirects/match'
+import {fetchRedirects, redirectResponse} from 'sanity-plugin-redirects/match'
 
 const rules = await fetchRedirects({
   projectId: 'yourProjectId',
@@ -75,48 +83,55 @@ const rules = await fetchRedirects({
   // fetchOptions: {next: {revalidate: 60}},                 // Next.js
 })
 
-const hit = matchRedirect(url.pathname, url.search, rules)
-if (hit) {
-  const location = /^https?:\/\//.test(hit.location) ? hit.location : url.origin + hit.location
-  return Response.redirect(location, hit.status)
-}
+const redirect = redirectResponse(request, rules)
+if (redirect) return redirect
 ```
 
-Two things worth getting right when you wire this up:
+`redirectResponse` builds the whole answer: the status, an absolute
+`Location`, and headers you can still change, so middleware that adds its own
+(a password gate, say) works on it. `Response.redirect`'s headers can't be
+changed.
+
+Things worth getting right when you wire this up:
 
 - **Check redirects after your own routes** (APIs, sitemap, assets), so a rule
   can never shadow the site's plumbing. The schema blocks such sources, but
   ordering is what actually enforces it.
-- **Only for `GET`/`HEAD`.** Redirecting a `POST` drops its body.
+- **Only `GET` and `HEAD` are redirected.** Redirecting a `POST` drops its
+  body, so `redirectResponse` returns `null` for anything else.
+- **Browsers remember a 301 for an hour** (`Cache-Control: max-age=3600`), so a
+  mistake in a rule fixes itself soon after the rule does. Sent without it,
+  browsers keep a 301 indefinitely. Change it with `{maxAge}`, in seconds; a
+  302 is never remembered.
+
+On a host without Fetch's `Request` and `Response` (Express, say), call
+`matchRedirect(pathname, search, rules)` and send its `status` and `location`
+yourself.
 
 <details>
 <summary>Cloudflare Worker</summary>
 
 ```ts
+import {fetchRedirects, redirectResponse} from 'sanity-plugin-redirects/match'
+
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url)
-
     // …your own routes first…
 
-    if (request.method === 'GET' || request.method === 'HEAD') {
-      const rules = await fetchRedirects({
-        projectId: env.SANITY_PROJECT_ID,
-        fetchOptions: {cf: {cacheTtl: 60, cacheEverything: true}},
-      })
-      const hit = matchRedirect(url.pathname, url.search, rules)
-      if (hit) {
-        const location = /^https?:\/\//.test(hit.location)
-          ? hit.location
-          : url.origin + hit.location
-        return Response.redirect(location, hit.status)
-      }
-    }
-
-    return env.ASSETS.fetch(request)
+    const rules = await fetchRedirects({
+      projectId: env.SANITY_PROJECT_ID,
+      fetchOptions: {cf: {cacheTtl: 60, cacheEverything: true}},
+    })
+    return redirectResponse(request, rules) ?? env.ASSETS.fetch(request)
   },
 }
 ```
+
+**With static assets and a 404 page** (`not_found_handling`), Cloudflare
+answers a browser's visit to a missing page with that page without running
+your Worker, on compatibility dates from 2025-04-01. No redirect would be
+checked. Add the `assets_navigation_has_no_effect` compatibility flag so those
+visits reach your Worker, or set `run_worker_first`.
 
 </details>
 
@@ -126,19 +141,14 @@ export default {
 ```ts
 // middleware.ts
 import {NextResponse} from 'next/server'
-import {fetchRedirects, matchRedirect} from 'sanity-plugin-redirects/match'
+import {fetchRedirects, redirectResponse} from 'sanity-plugin-redirects/match'
 
 export async function middleware(request) {
   const rules = await fetchRedirects({
     projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
     fetchOptions: {next: {revalidate: 60}},
   })
-  const {pathname, search, origin} = request.nextUrl
-  const hit = matchRedirect(pathname, search, rules)
-  if (!hit) return NextResponse.next()
-
-  const location = /^https?:\/\//.test(hit.location) ? hit.location : origin + hit.location
-  return NextResponse.redirect(location, hit.status)
+  return redirectResponse(request, rules) ?? NextResponse.next()
 }
 
 export const config = {matcher: '/((?!_next|api|.*\\..*).*)'}
@@ -155,9 +165,17 @@ export const config = {matcher: '/((?!_next|api|.*\\..*).*)'}
 | `/old-news/*` → `/news/*` | `/old-news/2019/gala` | `301 /news/2019/gala` |
 | `/old-news/*` → `/archive` | `/old-news/2019/gala` | `301 /archive` |
 | `/temp` → `/x`, permanent off | `/temp` | `302 /x` |
+| `/old/*` → `/new/*` | `/OLD/Report.PDF` | `301 /new/Report.PDF` |
+| `/*` → `https://new.example/*` | `/about/team` | `301 https://new.example/about/team` |
+| `/café` → `/cafe` | `/caf%C3%A9` | `301 /cafe` |
+| `/promo` → `https://shop.example/p?ref=1` | `/promo?utm=x` | `301 https://shop.example/p?ref=1&utm=x` |
 
-- Letter case and trailing slashes never distinguish two paths.
-- The query string always carries over.
+- Letter case (A to Z), trailing slashes and percent-encoding never
+  distinguish two paths: `/Café/` and `/caf%C3%A9` are one.
+- A folder rule carries the rest of the address across as the visitor typed
+  it, letter case included.
+- The query string always carries over, added to any the destination has.
+- The `location` is percent-encoded, ready for a `Location` header.
 - An exact rule beats a folder rule; among folder rules the longest prefix
   wins, so `/old/news/*` can carve an exception out of `/old/*`.
 - One hop only. A rule resolving to its own source is dropped rather than
@@ -203,6 +221,12 @@ matchRedirect(
   rules: RedirectRule[],
 ): {location: string; status: 301 | 302} | null
 
+redirectResponse(
+  request: Request,
+  rules: RedirectRule[],
+  options?: {maxAge?: number}  // seconds a browser keeps a 301; default 3600
+): Response | null
+
 REDIRECT_TYPE     // 'redirect'
 REDIRECTS_QUERY   // the GROQ behind fetchRedirects, if you'd rather use your own client
 ```
@@ -211,7 +235,7 @@ REDIRECTS_QUERY   // the GROQ behind fetchRedirects, if you'd rather use your ow
 
 ```sh
 npm install
-npm test          # 18 tests, run against dist so they check what ships
+npm test          # 42 tests, run against dist so they check what ships
 npm run build
 ```
 

@@ -1,8 +1,8 @@
 import {definePlugin, defineField, defineType} from 'sanity'
 import type {StructureBuilder} from 'sanity/structure'
-import {ArrowRightIcon} from '@sanity/icons'
-
+import {RedirectIcon, TestIcon} from './icon.js'
 import {REDIRECT_TYPE} from './match.js'
+import {RedirectTester} from './tester.js'
 
 export {REDIRECT_TYPE, REDIRECTS_QUERY} from './match.js'
 export type {RedirectRule} from './match.js'
@@ -60,7 +60,7 @@ const buildSchema = (options: RedirectsPluginOptions) => {
     name: REDIRECT_TYPE,
     title: 'Redirect',
     type: 'document',
-    icon: ArrowRightIcon,
+    icon: RedirectIcon,
     fields: [
       defineField({
         name: 'source',
@@ -168,21 +168,41 @@ const buildSchema = (options: RedirectsPluginOptions) => {
 }
 
 /**
- * Sidebar entry. Add to your structure, and add 'redirect' to any
- * hand-maintained list of types you filter out of the default document list.
+ * Sidebar entry: every redirect, and the test area. Add to your structure,
+ * and add 'redirect' to any hand-maintained list of types you filter out of
+ * the default document list.
  *
  *   import {redirectsListItem} from 'sanity-plugin-redirects'
  *   S.list().items([..., redirectsListItem(S)])
  */
-export const redirectsListItem = (S: StructureBuilder, options: RedirectsPluginOptions = {}) =>
-  S.listItem()
-    .title(options.title ?? 'Redirects')
-    .icon(ArrowRightIcon)
+export const redirectsListItem = (S: StructureBuilder, options: RedirectsPluginOptions = {}) => {
+  const title = options.title ?? 'Redirects'
+  return S.listItem()
+    .id('redirects')
+    .title(title)
+    .icon(RedirectIcon)
     .child(
-      S.documentTypeList(REDIRECT_TYPE)
-        .title(options.title ?? 'Redirects')
-        .defaultOrdering([{field: 'source', direction: 'asc'}]),
+      S.list()
+        .id('redirects')
+        .title(title)
+        .items([
+          S.listItem()
+            .id('all')
+            .title('All redirects')
+            .icon(RedirectIcon)
+            .child(
+              S.documentTypeList(REDIRECT_TYPE)
+                .title(title)
+                .defaultOrdering([{field: 'source', direction: 'asc'}]),
+            ),
+          S.listItem()
+            .id('test')
+            .title('Test an address')
+            .icon(TestIcon)
+            .child(S.component(RedirectTester).id('test').title('Test an address')),
+        ]),
     )
+}
 
 /**
  *   import {redirectsPlugin} from 'sanity-plugin-redirects'

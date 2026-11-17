@@ -6,19 +6,16 @@
  * Astro middleware, Express, Deno. Import it from `sanity-plugin-redirects/match`
  * — the Studio half never reaches your server bundle.
  *
- *   import {fetchRedirects, matchRedirect} from 'sanity-plugin-redirects/match'
+ *   import {fetchRedirects, redirectResponse} from 'sanity-plugin-redirects/match'
  *
  *   const rules = await fetchRedirects({projectId: 'abc123'})
- *   const hit = matchRedirect(url.pathname, url.search, rules)
- *   if (hit) return Response.redirect(url.origin + hit.location, hit.status)
+ *   const redirect = redirectResponse(request, rules)
+ *   if (redirect) return redirect
  */
 
-/** One rule as stored in Sanity. */
-export interface RedirectRule {
-  source?: string
-  destination?: string
-  permanent?: boolean
-}
+import {ABSOLUTE, resolveRedirect, type RedirectRule} from './resolve.js'
+
+export type {RedirectRule} from './resolve.js'
 
 export interface RedirectsConfig {
   /** Your Sanity project id. Required — there is no sensible default. */
@@ -40,7 +37,7 @@ export interface RedirectsConfig {
 }
 
 export interface RedirectHit {
-  /** Path + query, or an absolute URL when the rule points off-site. */
+  /** Path + query, or an absolute URL when the rule points off-site. Percent-encoded. */
   location: string
   status: 301 | 302
 }
@@ -80,12 +77,6 @@ export async function fetchRedirects(config: RedirectsConfig): Promise<RedirectR
   }
 }
 
-/** Trailing slashes and letter case never distinguish two pages. */
-const canonicalize = (path: string): string => {
-  const trimmed = path.replace(/\/+$/, '')
-  return (trimmed === '' ? '/' : trimmed).toLowerCase()
-}
-
 /**
  * The redirect for `pathname`, or null when no rule applies.
  *
@@ -109,38 +100,46 @@ export function matchRedirect(
   search: string,
   rules: RedirectRule[],
 ): RedirectHit | null {
-  const path = canonicalize(pathname)
+  const resolved = resolveRedirect(pathname, search, rules)
+  return resolved && {location: resolved.location, status: resolved.status}
+}
 
-  let best: {rule: RedirectRule; suffix: string; exact: boolean; length: number} | null = null
+export interface RedirectResponseOptions {
+  /**
+   * Seconds a browser may remember a 301. Defaults to 3600 (an hour). Sent
+   * without it, browsers keep a 301 indefinitely, so a mistake in a rule
+   * would outlive its fix. A 302 is never remembered.
+   */
+  maxAge?: number
+}
 
-  for (const rule of rules) {
-    const source = rule.source?.trim()
-    if (!source || !rule.destination?.trim()) continue
+/**
+ * The redirect for `request` as a Response to return as it is, or null when
+ * no rule applies. Only GET and HEAD are redirected: redirecting a POST drops
+ * what it sends.
+ *
+ * The Location is absolute, and unlike `Response.redirect`'s, the headers can
+ * still be changed, for middleware that adds its own afterwards.
+ *
+ * @param request The incoming request
+ * @param rules   From {@link fetchRedirects}
+ */
+export function redirectResponse(
+  request: Request,
+  rules: RedirectRule[],
+  options: RedirectResponseOptions = {},
+): Response | null {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null
+  const url = new URL(request.url)
+  const hit = matchRedirect(url.pathname, url.search, rules)
+  if (!hit) return null
 
-    if (source.endsWith('/*')) {
-      const prefix = canonicalize(source.slice(0, -2))
-      const matches = path === prefix || path.startsWith(prefix === '/' ? '/' : prefix + '/')
-      if (!matches) continue
-      if (!best || (!best.exact && prefix.length > best.length)) {
-        best = {rule, suffix: path.slice(prefix.length), exact: false, length: prefix.length}
-      }
-    } else if (canonicalize(source) === path) {
-      best = {rule, suffix: '', exact: true, length: source.length}
-      break
-    }
-  }
-
-  if (!best) return null
-
-  const destination = best.rule.destination!.trim()
-  const location = destination.endsWith('/*')
-    ? destination.slice(0, -2) + best.suffix
-    : destination
-
-  if (canonicalize(location) === path && !/^https?:\/\//.test(location)) return null
-
-  return {
-    location: (location || '/') + search,
-    status: best.rule.permanent === false ? 302 : 301,
-  }
+  const {maxAge = 3600} = options
+  return new Response(null, {
+    status: hit.status,
+    headers: {
+      Location: ABSOLUTE.test(hit.location) ? hit.location : url.origin + hit.location,
+      'Cache-Control': hit.status === 301 ? `max-age=${maxAge}` : 'no-store',
+    },
+  })
 }

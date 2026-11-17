@@ -1,6 +1,6 @@
 {
   "name": "sanity-plugin-redirects",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Editor-managed 301/302 redirects for Sanity \u2014 a Studio plugin plus a zero-dependency matcher you apply in your own middleware, Worker or edge function.",
   "keywords": [
     "sanity",
@@ -62,7 +62,6 @@
     }
   },
   "devDependencies": {
-    "@sanity/icons": "^3.0.0",
     "@types/node": "^22.0.0",
     "react": "^19.0.0",
     "sanity": "^5.0.0",
